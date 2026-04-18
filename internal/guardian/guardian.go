@@ -52,14 +52,14 @@ func StartGuardian() {
 		fmt.Printf("Nome: %s | Descrição: %s\n", d.Name, d.Description)
 	}
 
-	device := "\\Device\\NPF_Loopback" 
+	device := "lo0" 
 	snapshotLen := int32(1600)
 	promiscuous := false
 	timeout := 1 * time.Second
 
 	handle, err := pcap.OpenLive(device, snapshotLen, promiscuous, timeout)
 	if err != nil {
-		log.Fatal("Erro ao abrir dispositivo. Rode como Administrador:", err)
+		log.Fatal("Erro ao abrir dispositivo. Use o 'sudo'", err)
 	}
 	defer handle.Close()
 
