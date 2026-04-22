@@ -13,7 +13,7 @@ import (
 
 func StartGuardian() {
 	// 1. Carregar o par de chaves do certificado para interceptação MITM
-	ca, err := tls.LoadX509KeyPair("ca.pem.cer", "key.pem")
+	ca, err := tls.LoadX509KeyPair("ca.pem", "key.pem")
 	if err != nil {
 		log.Fatal("Erro ao carregar certificados. Verifique os nomes dos arquivos:", err)
 	}
