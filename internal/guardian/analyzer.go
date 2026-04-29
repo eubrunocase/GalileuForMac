@@ -1,38 +1,60 @@
 package guardian
 
 import (
-	"strings"
+	"regexp"
+	"sync"
 )
 
-type SensitiveInfo struct {
-	Label   string
-	Pattern string
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return &bufferWrapper{data: make([]byte, 0, 4096)}
+	},
 }
 
-type PayloadAnalyzer struct {
-	Patterns []SensitiveInfo
+type bufferWrapper struct {
+	data []byte
 }
 
-func NewAnalyzer() *PayloadAnalyzer {
-	return &PayloadAnalyzer{
-		Patterns: []SensitiveInfo{
-			{Label: "Gemini_Key", Pattern: "AIzaSy"},
-			{Label: "OpenAI_Key", Pattern: "sk-"},
-			{Label: "Claude_Key", Pattern: "sk-ant-"},
-		},
+type Analyzer struct {
+	compiledPatterns []*regexp.Regexp
+	redaction        []byte
+}
+
+func NewAnalyzer() *Analyzer {
+	patterns := []string{
+		`(sk-[a-zA-Z0-9]{20,})`,
+		`(sk-proj-[a-zA-Z0-9.-]{20,})`,
+		`(sk-ant-[a-zA-Z0-9.-]{20,})`,
+		`(AIzaSy[a-zA-Z0-9_-]{35})`,
+		`(ghp_[a-zA-Z0-9]{36})`,
+		`(xox[baprs]-[a-zA-Z0-9]{10,})`,
+		`(AKIA[0-9A-Z]{16})`,
+		`(bearer\s+[a-zA-Z0-9.-]{20,})`,
+		`(wJalr[a-zA-Z0-9/+=]{30,})`,
+		`(api_key[a-zA-Z0-9_]{20,})`,
+	}
+
+	compiled := make([]*regexp.Regexp, len(patterns))
+	for i, p := range patterns {
+		compiled[i] = regexp.MustCompile(p)
+	}
+
+	return &Analyzer{
+		compiledPatterns: compiled,
+		redaction:        []byte("[REDACTED_BY_GALILEU]"),
 	}
 }
 
-func (a *PayloadAnalyzer) Analyze(payload []byte) (bool, []byte) {
-	content := string(payload)
-	isSensitive := false
-	modifiedContent := content
+func (a *Analyzer) Analyze(data []byte) (bool, []byte) {
+	modified := false
+	result := data
 
-	for _, p := range a.Patterns {
-		if strings.Contains(content, p.Pattern) {
-			isSensitive = true
-			modifiedContent = strings.ReplaceAll(modifiedContent, p.Pattern, "[REDACTED_"+p.Label+"]")
+	for _, re := range a.compiledPatterns {
+		if re.Match(result) {
+			modified = true
+			result = re.ReplaceAll(result, a.redaction)
 		}
 	}
-	return isSensitive, []byte(modifiedContent)
+
+	return modified, result
 }

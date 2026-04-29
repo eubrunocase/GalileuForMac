@@ -12,16 +12,16 @@ import (
 )
 
 func StartGuardian() {
-	// 1. Carregar o par de chaves do certificado para interceptação MITM
 	ca, err := tls.LoadX509KeyPair("ca.pem", "key.pem")
 	if err != nil {
-		log.Fatal("Erro ao carregar certificados. Verifique os nomes dos arquivos:", err)
+		log.Fatal("[ERRO] Falha ao carregar certificados. Verifique se ca.pem e key.pem estão na raiz: ", err)
 	}
 
-	proxy := goproxy.NewProxyHttpServer()
-	
-	// Configura o proxy para usar o certificado para interceptação MITM
 	goproxy.GoproxyCa = ca
+
+	proxy := goproxy.NewProxyHttpServer()
+	proxy.Verbose = true 
+
 	proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
 	analyzer := NewAnalyzer()
@@ -33,11 +33,11 @@ func StartGuardian() {
 				if err != nil {
 					return r, nil
 				}
-				
+
 				found, cleanPayload := analyzer.Analyze(body)
 
 				if found {
-					fmt.Println("[GALILEU] Interceptado: Chaves de API detectadas e mascaradas.")
+					fmt.Printf("[GALILEU] INTERCEPTADO: Dados sensíveis removidos do destino: %s\n", r.Host)
 					r.Body = io.NopCloser(bytes.NewBuffer(cleanPayload))
 					r.ContentLength = int64(len(cleanPayload))
 				} else {
@@ -47,6 +47,6 @@ func StartGuardian() {
 			return r, nil
 		})
 
-	fmt.Println("[GALILEU] Ativo no macOS. Ouvindo na porta :9000...")
+	fmt.Println("[GALILEU] Proxy ativo e escutando em http://127.0.0.1:9000")
 	log.Fatal(http.ListenAndServe(":9000", proxy))
 }
